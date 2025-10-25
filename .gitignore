@@ -1,0 +1,3 @@
+# Ignore massive raw files
+data/raw/*.json
+data/raw/*.json.gz

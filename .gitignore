@@ -3,5 +3,7 @@ data/raw/*.json
 data/raw/*.json.gz
 data/raw/*.csv
 data/raw/*.zip
-data/
+data/processed/solar_data_training.csv
+data/processed/solar_dataset.csv
+data/processed/testing_data_solar.csv
 

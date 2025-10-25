@@ -1,10 +1,9 @@
 # ===============================================================
-# MODEL TRAINING SCRIPT - for Solar Potential Model
+# MODEL TRAINING SCRIPT - Simplified Solar Potential Model
 # ---------------------------------------------------------------
 # Loads processed dataset from /data/processed/
 # Cleans missing/invalid values
-# Tracks rows lost during cleaning
-# Trains XGBRegressor to predict SPI
+# Trains XGBRegressor to predict SPI (Solar Potential Index)
 # Saves trained model to /models/
 # ===============================================================
 
@@ -19,7 +18,7 @@ import joblib
 # --------------------------------------------------------------
 # STEP 0 — File paths
 # --------------------------------------------------------------
-INPUT_FILE = "../data/processed/solar_data_training.csv"
+INPUT_FILE = "../data/processed/solar_dataset.csv"
 MODEL_FILE = "../models/solar_model.joblib"
 
 # Ensure the model folder exists
@@ -45,18 +44,8 @@ print("[DEBUG] Missing values per column BEFORE cleaning:")
 print(df.isna().sum())
 
 # Drop rows where SPI or key weather variables are missing
-required_cols = ["SPI", "avg_temp", "total_rain", "total_snow",
-                 "latitude", "longitude", "year"]
+required_cols = ["SPI", "avg_temp", "total_rain", "latitude", "longitude", "year"]
 df = df.dropna(subset=required_cols)
-
-# Handle avg_wind (fill with mean if missing)
-if "avg_wind" in df.columns:
-    if df["avg_wind"].isna().sum() > 0:
-        df["avg_wind"] = df["avg_wind"].fillna(df["avg_wind"].mean())
-        print("[INFO] Filled missing avg_wind values with mean.")
-else:
-    df["avg_wind"] = 0.0
-    print("[WARN] avg_wind column missing — created constant 0.0")
 
 # Track cleaning results
 cleaned_rows = len(df)
@@ -73,9 +62,10 @@ print(f"[INFO] Data retained:         {percent_retained:.2f}%")
 # --------------------------------------------------------------
 print("[INFO] Preparing features and target for training...")
 
+# Only use columns that exist in the simplified dataset
 feature_cols = [
     "latitude", "longitude", "elevation", "year",
-    "avg_temp", "total_rain", "total_snow", "avg_wind"
+    "avg_temp", "total_rain"
 ]
 X = df[feature_cols]
 y = df["SPI"]
@@ -99,12 +89,13 @@ print(f"    Test size:  {X_test.shape[0]}")
 print("[INFO] Training XGBoost Regressor for Solar Potential...")
 
 solar_model = XGBRegressor(
-    n_estimators=300,
-    learning_rate=0.05,
+    n_estimators=400,
+    learning_rate=0.03,
     max_depth=6,
     subsample=0.8,
     colsample_bytree=0.8,
-    random_state=42
+    random_state=42,
+    reg_lambda=1.0
 )
 
 solar_model.fit(X_train, y_train)
@@ -115,10 +106,8 @@ print("[SUCCESS] Model training complete.")
 # --------------------------------------------------------------
 y_pred = solar_model.predict(X_test)
 
-# Calculate R² and RMSE (manual sqrt for compatibility)
 r2 = r2_score(y_test, y_pred)
-mse = mean_squared_error(y_test, y_pred)
-rmse = np.sqrt(mse)
+rmse = mean_squared_error(y_test, y_pred, squared=False)
 
 print(f"[METRICS] R² score: {r2:.3f}")
 print(f"[METRICS] RMSE:     {rmse:.3f}")

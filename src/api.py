@@ -18,11 +18,12 @@ app = FastAPI(
 # ---------------------------------------------------------------
 # Load trained models
 # ---------------------------------------------------------------
-crop_model = joblib.load("models/crop_model.joblib")
-encoder = joblib.load("models/label_encoder.joblib")
-scaler = joblib.load("models/scaler.joblib")
-temp_model = joblib.load("models/temperature_model.joblib")
-rain_model = joblib.load("models/rainfall_model.joblib")
+crop_model = joblib.load("ML_MODELS/crop_model.joblib")
+encoder = joblib.load("ML_MODELS/label_encoder.joblib")
+scaler = joblib.load("ML_MODELS/scaler.joblib")
+temp_model = joblib.load("ML_MODELS/temperature_model.joblib")
+rain_model = joblib.load("ML_MODELS/rainfall_model.joblib")
+solar_model = joblib.load("ML_MODELS/solar_model.joblib") 
 
 
 @app.get("/")
@@ -93,6 +94,10 @@ def predict_crop_by_location(
     pred_encoded = crop_model.predict(X_scaled)[0]
     crop_name = encoder.inverse_transform([pred_encoded])[0]
 
+    # Step 4. Predict Solar Potential (SPI)
+    X_solar = np.array([[latitude, longitude, year, predicted_temp, predicted_rain]])
+    predicted_spi = float(solar_model.predict(X_solar)[0])
+
     # Step 4. Return JSON response
     return {
         "latitude": latitude,
@@ -101,5 +106,6 @@ def predict_crop_by_location(
         "predicted_temperature": round(predicted_temp, 2),
         "predicted_rainfall": round(predicted_rain, 2),
         "region_defaults": defaults,
+        "solar_potential_index": round(predicted_spi, 2),
         "recommended_crop": crop_name
     }

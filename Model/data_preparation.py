@@ -1,8 +1,8 @@
 # ===============================================================
-# DATA PREPARATION SCRIPT - for Solar Potential Model
+# DATA PREPARATION SCRIPT - for Solar Potential Model (Simplified)
 # ---------------------------------------------------------------
 # Cleans raw GHCN data, pivots observations, aggregates by region
-# Computes Solar Potential Index (SPI)
+# Computes Solar Potential Index (SPI) using only temperature & rain
 # Saves clean dataset to /data/processed/
 # ===============================================================
 
@@ -22,10 +22,13 @@ print(f"[INFO] Raw rows loaded: {len(df):,}")
 # --------------------------------------------------------------
 print("[INFO] Cleaning data...")
 
+# Remove invalid rows
 df.dropna(subset=["station", "observation", "value", "year", "latitude", "longitude"], inplace=True)
 df["value"] = pd.to_numeric(df["value"], errors="coerce")
 df["value"].replace([9999, -9999], np.nan, inplace=True)
 df.dropna(subset=["value"], inplace=True)
+
+# Filter out unrealistic measurement values
 df = df[(df["value"] > -1000) & (df["value"] < 10000)]
 df.drop_duplicates(subset=["station", "date", "observation"], inplace=True)
 
@@ -34,7 +37,7 @@ print(f"[INFO] After cleaning: {len(df):,} rows remain")
 # --------------------------------------------------------------
 # STEP 2 — Pivot observations (long → wide)
 # --------------------------------------------------------------
-print("[INFO] Pivoting observation types (TAVG, PRCP, SNOW, AWND)...")
+print("[INFO] Pivoting observation types (TAVG, PRCP)...")
 
 pivoted = (
     df.pivot_table(
@@ -45,17 +48,15 @@ pivoted = (
     ).reset_index()
 )
 
-# Convert units (divide by 10)
-for col in ["TMAX", "TMIN", "TAVG", "PRCP", "AWND", "SNOW"]:
+# Convert units (divide by 10 to get °C and mm)
+for col in ["TMAX", "TMIN", "TAVG", "PRCP"]:
     if col in pivoted.columns:
         pivoted[col] = pivoted[col] / 10.0
 
-# Rename key features
+# Rename key features for clarity
 pivoted.rename(columns={
     "TAVG": "avg_temp",
-    "PRCP": "total_rain",
-    "SNOW": "total_snow",
-    "AWND": "avg_wind"
+    "PRCP": "total_rain"
 }, inplace=True)
 
 print(f"[INFO] Pivot complete. Shape: {pivoted.shape}")
@@ -74,8 +75,6 @@ agg = (
     .agg({
         "avg_temp": "mean",
         "total_rain": "sum",
-        "total_snow": "sum",
-        "avg_wind": "mean",
         "elevation": "max",
         "latitude": "mean",
         "longitude": "mean"
@@ -89,15 +88,15 @@ print(f"[INFO] Aggregated shape: {agg.shape}")
 # --------------------------------------------------------------
 print("[INFO] Computing Solar Potential Index (SPI)...")
 
+# Scale temperature and rainfall (normalize 0–1)
 scaler = MinMaxScaler()
-agg[["avg_temp_s", "total_rain_s", "total_snow_s"]] = scaler.fit_transform(
-    agg[["avg_temp", "total_rain", "total_snow"]]
+agg[["avg_temp_s", "total_rain_s"]] = scaler.fit_transform(
+    agg[["avg_temp", "total_rain"]]
 )
 
+# SPI Formula (temperature = positive factor, rainfall = negative)
 agg["SPI"] = (
-    0.5 * agg["avg_temp_s"]
-    - 0.3 * agg["total_rain_s"]
-    - 0.2 * agg["total_snow_s"]
+    0.6 * agg["avg_temp_s"] - 0.4 * agg["total_rain_s"]
 ) * 100
 
 # --------------------------------------------------------------
@@ -105,7 +104,7 @@ agg["SPI"] = (
 # --------------------------------------------------------------
 final = agg[[
     "region_id", "year", "latitude", "longitude", "elevation",
-    "avg_temp", "total_rain", "total_snow", "avg_wind", "SPI"
+    "avg_temp", "total_rain", "SPI"
 ]]
 
 final.to_csv(OUTPUT_FILE, index=False)

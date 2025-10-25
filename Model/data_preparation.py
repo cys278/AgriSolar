@@ -10,8 +10,8 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
-RAW_FILE = "../data/raw/weather_1_full.csv"
-OUTPUT_FILE = "../data/processed/solar_training_dataset.csv"
+RAW_FILE = "../data/raw/merge_dataset.csv"
+OUTPUT_FILE = "../data/processed/solar_dataset.csv"
 
 print("[INFO] Loading raw dataset...")
 df = pd.read_csv(RAW_FILE)
